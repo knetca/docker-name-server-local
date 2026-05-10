@@ -1,0 +1,79 @@
+---
+# docker-dns — Unbound + Chrony + dns-manager
+#
+# network_mode: host — DNS (udp/53) and NTP (udp/123) require host networking.
+# dns-manager reaches unbound-control at 127.0.0.1:8953 via host network stack.
+# unbound-control is no-TLS, loopback only — acceptable on a dedicated host.
+
+services:
+
+  unbound:
+    image: klutchell/unbound:${UNBOUND_TAG}
+    container_name: unbound
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./unbound/unbound.conf:/etc/unbound/unbound.conf:ro
+      - ./unbound/unbound.conf.d:/etc/unbound/custom.conf.d:ro
+      - zones:/etc/unbound/zones
+    healthcheck:
+      test: ["CMD", "drill-hc", "@127.0.0.1", "health.check.unbound"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  chrony:
+    image: dockurr/chrony:${CHRONY_TAG}
+    container_name: chrony
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - SYS_TIME
+    environment:
+      # false — disable system clock adjustment.
+      # Container tracks upstream sources and serves NTP clients only.
+      # Equivalent to chronyd -x in the LXC build.
+      ENABLE_SYSCLK: "false"
+      TZ: "UTC"
+    volumes:
+      - ./chrony/chrony.conf:/etc/chrony/chrony.conf:ro
+      - chrony-run:/run/chrony
+      - chrony-data:/var/lib/chrony
+
+  dns-manager:
+    build:
+      context: ./manager
+      args:
+        ALPINE_TAG: ${ALPINE_TAG}
+    image: dns-manager:${MANAGER_TAG:-local}
+    container_name: dns-manager
+    restart: unless-stopped
+    network_mode: host
+    depends_on:
+      unbound:
+        condition: service_healthy
+    environment:
+      ZONES_REPO: ${ZONES_REPO}
+      ZONES_BRANCH: ${ZONES_BRANCH:-main}
+      ZONES_CRON: ${ZONES_CRON:-*/5 * * * *}
+      BLOCKLIST_CRON: ${BLOCKLIST_CRON:-0 3 * * *}
+      TZ: ${TZ:-UTC}
+    volumes:
+      # SSH deploy key for zones repo — generated once per host, never committed
+      - ./manager/ssh/id_ed25519:/root/.ssh/id_ed25519:ro
+      - ./manager/ssh/known_hosts:/root/.ssh/known_hosts:ro
+      # Shared zones volume — manager writes here, Unbound reads from here
+      - zones:/etc/unbound/zones
+      # git working copy — persists across restarts for incremental fetch
+      - zones-git:/var/lib/dns-manager/zones
+
+volumes:
+  zones:
+    # Shared between unbound and dns-manager.
+    # Contains zone *.conf files and 20-blocklist.conf.
+  zones-git:
+    # git working copy of the zones repo.
+    # Persisted so git pull is incremental on restart.
+  chrony-run:
+  chrony-data:
