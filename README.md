@@ -1,4 +1,4 @@
-# docker-dns
+# docker-name-server
 
 Unbound (recursive DNS, DoT upstreams, OISD ad/tracker blocking,
 git-managed local zones) and Chrony (NTP server) as a Docker Compose stack.
