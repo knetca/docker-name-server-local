@@ -23,15 +23,10 @@ COPY scripts/deploy-zones.sh /usr/local/bin/deploy-zones.sh
 COPY scripts/update-blocklist.sh /usr/local/bin/update-blocklist.sh
 COPY entrypoint.sh /entrypoint.sh
 
-# Seed files — copied to zones volume on first start if not already present.
-# Ensures Unbound's include glob never matches an empty directory.
-COPY seed/ /etc/dns-manager/seed/
-
 RUN chmod +x \
     /usr/local/bin/deploy-zones.sh \
     /usr/local/bin/update-blocklist.sh \
-    /entrypoint.sh \
-    && chmod 644 /etc/dns-manager/seed/*.conf
+    /entrypoint.sh
 
 # SSH client config — accept known_hosts from bind mount, strict host checking.
 RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh

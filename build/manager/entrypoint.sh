@@ -1,13 +1,8 @@
 #!/bin/sh
 # entrypoint.sh — dns-manager container entrypoint
 #
-# Validates required environment, seeds zones volume with placeholder files,
-# writes crontab for both jobs, runs initial sync of zones and blocklist,
-# then execs crond in foreground.
-#
-# Seed files ensure Unbound's include glob (/etc/unbound/zones/*.conf)
-# always matches at least one file on first start, before deploy-zones.sh
-# has had a chance to populate the volume from git.
+# Validates required environment, writes crontab for both jobs, runs 
+# initial sync of zones and blocklist, then execs crond in foreground.
 #
 # Logging: all output goes to stdout/stderr, captured by Docker.
 # crond is run with -f (foreground) and -l 8 (log level notice).
@@ -39,26 +34,6 @@ if [ "${PERMS}" != "600" ]; then
     log "ERROR: ${KEYFILE} has permissions ${PERMS} — must be 600 on the host"
     exit 1
 fi
-
-# --- Seed zones volume ---
-# Copy seed files to the zones volume only if the target does not already
-# exist. Ensures Unbound's include glob always matches at least one file,
-# preventing a startup failure on a brand new empty volume.
-# Seed files are comment-only placeholders — deploy-zones.sh and
-# update-blocklist.sh replace them on first successful run.
-ZONES_DIR="/etc/unbound/zones"
-mkdir -p "${ZONES_DIR}"
-
-for seed in /etc/dns-manager/seed/*.conf; do
-    [ -f "$seed" ] || continue
-    target="${ZONES_DIR}/$(basename "$seed")"
-    if [ ! -f "${target}" ]; then
-        cp "${seed}" "${target}"
-        log "Seeded: $(basename "$seed")"
-    else
-        log "Seed skipped (already present): $(basename "$seed")"
-    fi
-done
 
 # --- Write crontab ---
 # Both jobs redirect output to /proc/1/fd/1 so Docker captures them.
