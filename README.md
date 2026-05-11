@@ -1,4 +1,4 @@
-# docker-dns
+# docker-name-server
 
 Unbound (recursive DNS, DoT upstreams, OISD ad/tracker blocking,
 git-managed local zones) and Chrony (NTP server) as a Docker Compose stack.
@@ -23,30 +23,38 @@ All three images are built locally from the same `ALPINE_TAG` pin.
 ## Repo structure
 
 ```
-docker-dns/
+docker-name-server/
+├── build
+│   ├── chrony
+│   │   └── Dockerfile             # custom Alpine chrony image
+│   ├── manager
+│   │   ├── Dockerfile
+│   │   ├── entrypoint.sh
+│   │   ├── scripts
+│   │   │   ├── deploy-zones.sh      # git poll + zone deploy + reload
+│   │   │   └── update-blocklist.sh  # OISD fetch + reload
+│   │   ├── seed
+│   │   │   ├── 00-seed.conf
+│   │   │   └── 20-blocklist.conf
+│   │   └── ssh_config
+│   └── unbound
+│       └── Dockerfile               # custom Alpine unbound image
+├── chrony
+│   └── chrony.conf
 ├── docker-compose.yml
-├── .env.example
-├── build/
-│   ├── unbound/Dockerfile      # custom Alpine unbound image
-│   └── chrony/Dockerfile       # custom Alpine chrony image
-├── unbound/
-│   ├── unbound.conf
-│   └── unbound.conf.d/
-│       ├── 10-server.conf          # interfaces, access control, hardening
-│       └── 50-forward-zones.conf   # DoT upstream resolvers
-├── chrony/
-│   └── chrony.conf
-└── manager/
-    ├── Dockerfile
-    ├── entrypoint.sh
-    ├── ssh_config
-    ├── ssh/
-    │   ├── SETUP.md
-    │   ├── id_ed25519              # gitignored — generated per host
-    │   └── known_hosts
-    └── scripts/
-        ├── deploy-zones.sh         # git poll + zone deploy + reload
-        └── update-blocklist.sh     # OISD fetch + reload
+├── docker_dns_filesystem.svg
+├── manager
+│   └── ssh
+│       ├── id_ed25519               # gitignored — generated per host
+│       ├── id_ed25519.pub           # gitignored — generated per host
+│       ├── known_hosts
+│       └── SETUP.md
+├── README.md
+└── unbound
+    ├── unbound.conf
+    └── unbound.conf.d
+        ├── 10-server.conf           # interfaces, access control, hardening
+        └── 50-forward-zones.conf    # DoT upstream resolvers
 ```
 
 ## Deployment
