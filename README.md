@@ -34,9 +34,6 @@ docker-name-server/
 │   │   ├── scripts
 │   │   │   ├── deploy-zones.sh       # git poll + zone deploy + reload
 │   │   │   └── update-blocklist.sh   # OISD fetch + reload
-│   │   ├── seed
-│   │   │   ├── 00-seed.conf          # placeholder — prevents empty glob on cold start
-│   │   │   └── 20-blocklist.conf     # placeholder — replaced on first blocklist fetch
 │   │   └── ssh_config
 │   └── unbound
 │       └── Dockerfile                # custom Alpine unbound image
@@ -319,13 +316,6 @@ generated per host — each nameserver has its own key registered on the
 zones repo. Zone files use Unbound `local-data` format: no SOA, no serial
 number, no BIND-style zone management overhead. Allowlist overrides live
 in the zones repo as `30-allowed.conf`.
-
-### Seed files for cold start
-
-`00-seed.conf` and `20-blocklist.conf` are baked into the dns-manager image
-and copied to the zones volume on first start if not already present.
-Prevents Unbound failing on an empty glob before dns-manager has had a
-chance to populate the volume from git.
 
 ### `crond` backgrounded with `tail -f /dev/null`
 
