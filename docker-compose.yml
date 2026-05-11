@@ -53,6 +53,9 @@ services:
     image: dns-manager:${ALPINE_TAG}
     container_name: dns-manager
     restart: unless-stopped
+    depends_on:
+      unbound:
+        condition: service_healthy
     network_mode: host
     environment:
       ZONES_REPO: ${ZONES_REPO}
