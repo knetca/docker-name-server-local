@@ -30,12 +30,14 @@ else
     git -C "${WORK_DIR}" reset --hard "origin/${ZONES_BRANCH}" --quiet
     AFTER=$(git -C "${WORK_DIR}" rev-parse HEAD)
 
+    SHORT_BEFORE=$(echo "$BEFORE" | cut -c1-7)
+    SHORT_AFTER=$(echo "$AFTER" | cut -c1-7)
+
     if [ "${BEFORE}" = "${AFTER}" ]; then
+        log "Same: ${SHORT_BEFORE} → ${SHORT_AFTER}"
         exit 0
     fi
 
-    SHORT_BEFORE=$(echo "$BEFORE" | cut -c1-7)
-    SHORT_AFTER=$(echo "$AFTER" | cut -c1-7)
     log "Updated: ${SHORT_BEFORE} → ${SHORT_AFTER}"
     CHANGED=1
 fi
