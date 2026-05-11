@@ -34,7 +34,9 @@ else
         exit 0
     fi
 
-    log "Updated: ${BEFORE%"${BEFORE#???????}"} → ${AFTER%"${AFTER#???????"}"}"
+    SHORT_BEFORE=$(echo "$BEFORE" | cut -c1-7)
+    SHORT_AFTER=$(echo "$AFTER" | cut -c1-7)
+    log "Updated: ${SHORT_BEFORE} → ${SHORT_AFTER}"
     CHANGED=1
 fi
 

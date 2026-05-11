@@ -29,10 +29,14 @@ log "Blocklist cron: ${BLOCKLIST_CRON}"
 
 # --- SSH key permissions ---
 # git/ssh will refuse keys with permissions wider than 0600
-if [ -f /root/.ssh/id_ed25519 ]; then
-    chmod 600 /root/.ssh/id_ed25519
-else
-    log "ERROR: /root/.ssh/id_ed25519 not found — mount the deploy key"
+KEYFILE=/root/.ssh/id_ed25519
+if [ ! -f "${KEYFILE}" ]; then
+    log "ERROR: ${KEYFILE} not found — mount the deploy key"
+    exit 1
+fi
+PERMS=$(stat -c "%a" "${KEYFILE}")
+if [ "${PERMS}" != "600" ]; then
+    log "ERROR: ${KEYFILE} has permissions ${PERMS} — must be 600 on the host"
     exit 1
 fi
 
@@ -80,4 +84,5 @@ log "Running initial blocklist fetch..."
 
 # --- Hand off to crond ---
 log "Starting crond"
-exec crond -f -l 8
+crond -l 8
+tail -f /dev/null
