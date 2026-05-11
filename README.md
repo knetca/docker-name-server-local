@@ -1,4 +1,4 @@
-# docker-name-server
+# docker-dns
 
 Unbound (recursive DNS, DoT upstreams, OISD ad/tracker blocking,
 git-managed local zones) and Chrony (NTP server) as a Docker Compose stack.
@@ -7,9 +7,11 @@ git-managed local zones) and Chrony (NTP server) as a Docker Compose stack.
 
 | Container | Image | Purpose |
 |-----------|-------|---------|
-| unbound | klutchell/unbound | Recursive resolver, DoT upstreams, local zones, ad blocking |
-| chrony | dockurr/chrony | NTP server — tracks upstream sources, serves LAN clients |
+| unbound | local build (alpine) | Recursive resolver, DoT upstreams, local zones, ad blocking |
+| chrony | local build (alpine) | NTP server — tracks upstream sources, serves LAN clients |
 | dns-manager | local build (alpine) | Zone git polling, blocklist updates, unbound-control reload |
+
+All three images are built locally from the same `ALPINE_TAG` pin.
 
 ## Requirements
 
@@ -24,6 +26,9 @@ git-managed local zones) and Chrony (NTP server) as a Docker Compose stack.
 docker-dns/
 ├── docker-compose.yml
 ├── .env.example
+├── build/
+│   ├── unbound/Dockerfile      # custom Alpine unbound image
+│   └── chrony/Dockerfile       # custom Alpine chrony image
 ├── unbound/
 │   ├── unbound.conf
 │   └── unbound.conf.d/
@@ -38,36 +43,11 @@ docker-dns/
     ├── ssh/
     │   ├── SETUP.md
     │   ├── id_ed25519              # gitignored — generated per host
-    │   ├── id_ed25519.pub
     │   └── known_hosts
     └── scripts/
         ├── deploy-zones.sh         # git poll + zone deploy + reload
         └── update-blocklist.sh     # OISD fetch + reload
 ```
-
-## Prerequisites
-
-Run through `manager/ssh/SETUP.md` on the host and confirm `ssh -T git@github.com` works 
-from inside a throwaway container before the real bring-up — saves debugging SSH issues 
-while the rest of the stack is also trying to start.
-
-```bash
-docker run --rm -it \
-    -v "$(pwd)/manager/ssh/id_ed25519:/root/.ssh/id_ed25519:ro" \
-    -v "$(pwd)/manager/ssh/known_hosts:/root/.ssh/known_hosts:ro" \
-    -v "$(pwd)/manager/ssh_config:/root/.ssh/config:ro" \
-    alpine sh -c "apk add --no-cache openssh-client && ssh -T git@github.com"
-```
-
-Run from the repo root. It mounts the same key material the real container will use, 
-installs `openssh-client`, and attempts the GitHub handshake. Expected output is:
-
-```
-Hi you/dns-zones! You've successfully authenticated, but GitHub does not provide shell access.
-```
-
-If you see that, the `deploy key`, `known_hosts`, and `ssh_config` are all correct and the 
-real container will work.
 
 ## Deployment
 
@@ -83,14 +63,14 @@ $EDITOR .env
 # 3. Set up SSH deploy key
 # Follow manager/ssh/SETUP.md
 
-# 4. Build dns-manager image
+# 4. Set correct permissions on deploy key
+chmod 600 manager/ssh/id_ed25519
+
+# 5. Build all images
 docker compose build
 
-# 5. Start stack
+# 6. Start stack
 docker compose up -d
-
-# 6. Monitor logs
-docker logs dns-manager --follow
 ```
 
 ## Zones repo layout
@@ -137,19 +117,79 @@ docker exec dns-manager deploy-zones.sh
 docker exec dns-manager update-blocklist.sh
 ```
 
-## Updating dns-manager
+## Updating images
 
-After changes to `manager/` scripts or Dockerfile:
+After any change to a Dockerfile or manager scripts:
 
 ```bash
 docker compose build
-docker compose up -d dns-manager
+docker compose up -d
 ```
 
-Increment `MANAGER_TAG` in `.env` to track the local image version.
+To update the Alpine base across all three images, change `ALPINE_TAG` in
+`.env` and rebuild.
+
+## Design decisions
+
+### Custom Alpine images over upstream
+
+`klutchell/unbound` is built `FROM scratch` — no shell, no package manager,
+making debugging and exec access impossible. `dockurr/chrony` has an
+opinionated startup script that unconditionally overwrites `/etc/chrony/chrony.conf`
+on every start, conflicting with a bind-mounted config.
+
+Alpine packages for both are plain vanilla, close to upstream defaults, and
+fully debuggable. All three images share a single `ALPINE_TAG` pin — one
+variable controls the entire stack's base.
+
+### `build/` directory for Dockerfiles
+
+`unbound/` and `chrony/` contain only config files bind-mounted at runtime.
+Dockerfiles live under `build/` to keep build artefacts separate from
+runtime config.
+
+### `network_mode: host`
+
+Required for DNS (UDP/53) and NTP (UDP/123). All containers share the host
+network stack. `unbound-control` reaches Unbound at `127.0.0.1:8953`
+directly from dns-manager without any cross-container networking complexity.
+
+### `unbound-control` no-TLS, loopback only
+
+Eliminates the need to share TLS keys between containers. Acceptable on a
+dedicated single-purpose host where the control interface never leaves the
+machine. Fortigate enforces network-layer access control.
+
+### dns-manager as custom Alpine image
+
+git, curl, unbound, and dcron in one container. Handles both zone git
+polling and blocklist updates. Two cron jobs replace the two systemd timers
+from the LXC build. Failure blast radius is contained at the script level —
+a failed blocklist fetch does not affect zone deploys and vice versa.
+
+### Git-managed zones via SSH deploy key
+
+Zones repo is separate from the stack repo. Read-only SSH deploy key
+generated per host — each nameserver has its own key registered on the
+zones repo. Zone files use Unbound `local-data` format: no SOA, no serial
+number, no BIND-style zone management overhead.
+
+### Seed files for cold start
+
+`00-seed.conf` and `20-blocklist.conf` are baked into the dns-manager image
+and copied to the zones volume on first start if not already present.
+Prevents Unbound failing on an empty `include-toplevel` glob before
+dns-manager has had a chance to populate the volume from git.
+
+### `crond` backgrounded with `tail -f /dev/null`
+
+Alpine crond's `setpgid` call is blocked by the default container seccomp
+profile when run with `-f` (foreground). Running crond in background and
+keeping the container alive with `tail -f /dev/null` is the pragmatic fix.
+Cron job output is redirected to `/proc/1/fd/1` so Docker captures it.
 
 ## Changelog
 
 | Date | Change |
 |------|--------|
-|      |        |
+| 2026-05-11 | Initial working deployment on Alma 10 |
