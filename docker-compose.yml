@@ -41,6 +41,7 @@ services:
       - SYS_TIME
     volumes:
       - ./chrony/chrony.conf:/etc/chrony/chrony.conf:ro
+      - ./chrony/chrony.conf.d:/etc/chrony/chrony.conf.d:ro
       - chrony-data:/var/lib/chrony
 
   dns-manager:
