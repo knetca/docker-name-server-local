@@ -45,7 +45,7 @@ services:
 
   dns-manager:
     build:
-      context: ./manager
+      context: ./build/manager
       args:
         ALPINE_TAG: ${ALPINE_TAG}
     image: dns-manager:${ALPINE_TAG}
