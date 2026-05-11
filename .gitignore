@@ -6,3 +6,7 @@
 manager/ssh/*
 !manager/ssh/SETUP.md
 
+# Chrony custom configuration
+chrony/chrony.conf.d/*
+!chrony/chrony.conf.d/README.md
+
