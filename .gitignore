@@ -10,3 +10,7 @@ manager/ssh/*
 chrony/chrony.conf.d/*
 !chrony/chrony.conf.d/README.md
 
+# Unbound custom configuration
+unbound/custom.conf.d/*
+!unbound/custom.conf.d/README.md
+

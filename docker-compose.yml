@@ -20,6 +20,7 @@ services:
     volumes:
       - ./unbound/unbound.conf:/etc/unbound/unbound.conf:ro
       - ./unbound/unbound.conf.d:/etc/unbound/unbound.conf.d:ro
+      - ./unbound/custom.conf.d:/etc/unbound/custom.conf.d:ro
       - zones:/etc/unbound/zones
     healthcheck:
       test: ["CMD", "drill", "@127.0.0.1", "health.check.unbound"]
