@@ -12,7 +12,7 @@ FROM alpine:${ALPINE_TAG}
 RUN apk add --no-cache \
     git \
     curl \
-    unbound-tools \
+    unbound \
     dcron \
     openssh-client \
     tzdata
