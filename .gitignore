@@ -5,6 +5,7 @@
 # SSH deploy key — generated per host, never committed
 manager/ssh/*
 !manager/ssh/SETUP.md
+!manager/ssh/config
 
 # Chrony custom configuration
 chrony/chrony.conf.d/*

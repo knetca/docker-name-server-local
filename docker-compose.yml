@@ -61,8 +61,7 @@ services:
       BLOCKLIST_CRON: ${BLOCKLIST_CRON:-0 3 * * *}
       TZ: ${TZ:-UTC}
     volumes:
-      - ./manager/ssh/id_ed25519:/root/.ssh/id_ed25519:ro
-      - ./manager/ssh/known_hosts:/root/.ssh/known_hosts:ro
+      - ./manager/ssh:/root/.ssh:ro
       - zones:/etc/unbound/zones
       - zones-git:/var/lib/dns-manager/zones
 

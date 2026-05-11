@@ -28,8 +28,4 @@ RUN chmod +x \
     /usr/local/bin/update-blocklist.sh \
     /entrypoint.sh
 
-# SSH client config — accept known_hosts from bind mount, strict host checking.
-RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh
-COPY ssh_config /root/.ssh/config
-
 ENTRYPOINT ["/entrypoint.sh"]
