@@ -19,7 +19,7 @@ All three images are built locally from the same `ALPINE_TAG` pin.
 - Linux host — dedicated recommended
 - `network_mode: host` — DNS (UDP/53) and NTP (UDP/123) require host networking
 - Dedicated zones git repository with SSH deploy key
-- firewalld disabled or UDP/53 and TCP/53 explicitly permitted
+- firewalld disabled or UDP/53, TCP/53, and UDP/123 explicitly permitted
 
 ## Repo structure
 
@@ -27,37 +27,63 @@ All three images are built locally from the same `ALPINE_TAG` pin.
 docker-name-server/
 ├── build
 │   ├── chrony
-│   │   └── Dockerfile             # custom Alpine chrony image
+│   │   └── Dockerfile                # custom Alpine chrony image
 │   ├── manager
 │   │   ├── Dockerfile
 │   │   ├── entrypoint.sh
 │   │   ├── scripts
-│   │   │   ├── deploy-zones.sh      # git poll + zone deploy + reload
-│   │   │   └── update-blocklist.sh  # OISD fetch + reload
+│   │   │   ├── deploy-zones.sh       # git poll + zone deploy + reload
+│   │   │   └── update-blocklist.sh   # OISD fetch + reload
 │   │   ├── seed
-│   │   │   ├── 00-seed.conf         # placeholder — prevents empty glob on cold start
-│   │   │   └── 20-blocklist.conf    # placeholder — replaced on first blocklist fetch
+│   │   │   ├── 00-seed.conf          # placeholder — prevents empty glob on cold start
+│   │   │   └── 20-blocklist.conf     # placeholder — replaced on first blocklist fetch
 │   │   └── ssh_config
 │   └── unbound
-│       └── Dockerfile               # custom Alpine unbound image
+│       └── Dockerfile                # custom Alpine unbound image
 ├── chrony
-│   └── chrony.conf
+│   ├── chrony.conf                   # generic NTP sources — tracked in git
+│   └── chrony.conf.d
+│       ├── README.md                 # tracked
+│       └── local.conf                # gitignored — host-specific NTP and allow
 ├── docker-compose.yml
 ├── manager
 │   └── ssh
-│       ├── id_ed25519               # gitignored — generated per host
-│       ├── id_ed25519.pub           # gitignored — generated per host
-│       ├── known_hosts
-│       └── SETUP.md
+│       ├── SETUP.md                  # tracked
+│       ├── id_ed25519                # gitignored — generated per host
+│       ├── id_ed25519.pub            # gitignored — generated per host
+│       └── known_hosts               # gitignored — generated per host
 ├── README.md
 └── unbound
-    ├── unbound.conf                 # entry point — include-toplevel only
+    ├── unbound.conf                  # entry point — include-toplevel only
+    ├── custom.conf.d
+    │   ├── README.md                 # tracked
+    │   └── local.conf                # gitignored — host-specific overrides
     └── unbound.conf.d
-        ├── 10-server.conf           # interfaces, hardening, performance
-        ├── 20-access-control.conf   # access control — differs per deployment
-        ├── 50-forward-zones.conf    # DoT upstream resolvers
+        ├── 10-server.conf            # interfaces, hardening, performance
+        ├── 20-access-control.conf    # RFC1918 defaults — tracked in git
+        ├── 50-forward-zones.conf     # DoT upstream resolvers
         └── 60-dns-manager-zones.conf # includes zones volume managed by dns-manager
 ```
+
+## Per-host configuration
+
+This repo is designed to be cloned identically on every nameserver host.
+Host-specific configuration lives in gitignored directories that survive
+`git pull` without conflict:
+
+| Directory | Purpose |
+|-----------|---------|
+| `unbound/custom.conf.d/` | Unbound overrides — access control, local directives |
+| `chrony/chrony.conf.d/` | Chrony overrides — NTP sources, allow subnets |
+| `manager/ssh/` | SSH deploy key and known_hosts |
+
+Files in these directories are never committed. Each host creates its own
+on first deployment and maintains them independently. See the `README.md`
+in each directory for examples.
+
+Tracked config files (`unbound.conf.d/*.conf`, `chrony.conf`) contain safe
+generic defaults and are updated via `git pull`. Do not edit them directly
+for host-specific changes — use the override directories instead.
 
 ## Deployment
 
@@ -76,49 +102,81 @@ $EDITOR .env
 # 4. Set correct permissions on deploy key
 chmod 600 manager/ssh/id_ed25519
 
-# 5. Build all images
+# 5. Create host-specific config files
+# See unbound/custom.conf.d/README.md and chrony/chrony.conf.d/README.md
+
+# 6. Build all images
 docker compose build
 
-# 6. Start stack
+# 7. Start stack
 docker compose up -d
 ```
 
 ## Unbound configuration
 
-`unbound.conf` is the entry point — two lines only:
+`unbound.conf` is the entry point — loads all config via `include-toplevel`:
 
 ```
 include-toplevel: "/etc/unbound/unbound.conf.d/*.conf"
+include-toplevel: "/etc/unbound/custom.conf.d/*.conf"
 ```
 
-All config lives in numbered drop-in files under `unbound.conf.d/`. Load
-order is lexicographic — the number prefix controls sequence.
+Files are loaded in lexicographic order within each directory. `custom.conf.d`
+loads after `unbound.conf.d` so host-specific directives take precedence.
+
+### Tracked config (`unbound.conf.d/`)
 
 | File | Purpose |
 |------|---------|
 | `10-server.conf` | Interfaces, hardening, performance, health check record |
-| `20-access-control.conf` | Access control — edit per deployment for correct subnets |
+| `20-access-control.conf` | RFC1918 defaults — loopback + all private address space |
 | `50-forward-zones.conf` | DoT upstream resolvers (CIRA, Quad9, Cloudflare filtered) |
-| `60-dns-manager-zones.conf` | Includes `/etc/unbound/zones/*.conf` from the zones volume |
+| `60-dns-manager-zones.conf` | Includes `/etc/unbound/zones/*.conf` from zones volume |
 
-### Access control
+### Host-specific config (`unbound/custom.conf.d/local.conf`)
 
-`20-access-control.conf` is the one file that differs between deployments.
-Edit to match the subnets that should be permitted to query this nameserver.
+Override or extend the tracked defaults. Loaded last — directives here
+take precedence. Common uses:
 
-For homelab nameservers (ns1, ns2):
+**Add Tailscale CGNAT (all Tailscale devices including guests):**
 ```
-access-control: 192.168.0.0/16 allow
-access-control: 100.64.0.0/10 allow    # Tailscale CGNAT
+server:
+    access-control: 100.64.0.0/10 allow
 ```
 
-For Tailscale-only nameservers (kd-ns1):
+**Tailscale-only host — deny RFC1918, allow Tailscale:**
 ```
-access-control: 100.64.0.0/10 allow    # full Tailscale CGNAT range
+server:
+    access-control: 10.0.0.0/8 refuse
+    access-control: 172.16.0.0/12 refuse
+    access-control: 192.168.0.0/16 refuse
+    access-control: 100.64.0.0/10 allow
 ```
 
 Note: `100.64.0.0/10` covers all Tailscale devices including guests from
-other tailnets who are sharing resources with you.
+other tailnets sharing resources with you.
+
+## Chrony configuration
+
+`chrony/chrony.conf` contains generic NTP pool sources and loads
+host-specific config via:
+
+```
+include /etc/chrony/chrony.conf.d/*.conf
+```
+
+### Host-specific config (`chrony/chrony.conf.d/local.conf`)
+
+Add preferred NTP sources and allow directives. Example:
+
+```
+# Preferred sources — NRC Canada cesium-traceable
+server time.nrc.ca iburst prefer
+server time.chu.nrc.ca iburst
+
+# Serve local clients
+allow 192.168.0.0/16
+```
 
 ## Zones repo layout
 
@@ -126,11 +184,11 @@ The zones repo must have a `zones/` subdirectory. Files are in Unbound
 `local-data` format — no SOA, no serial number required.
 
 ```
-cstl-zones/
+dns-zones/
 └── zones/
     ├── 30-allowed.conf         # blocklist overrides for false positives
-    ├── cstl.one.conf           # internal zone — static type
-    └── nwrg.ca.conf            # split-DNS zone — transparent type
+    ├── example.internal.conf   # internal zone — static type
+    └── example.com.conf        # split-DNS zone — transparent type
 ```
 
 Zone types:
@@ -162,7 +220,7 @@ server:
 dig @127.0.0.1 health.check.unbound A
 
 # DNS — internal zone
-dig @127.0.0.1 ns1.cstl.one A
+dig @127.0.0.1 host.example.internal A
 
 # DNS — external forwarded
 dig @127.0.0.1 google.com A
@@ -187,7 +245,7 @@ docker exec dns-manager deploy-zones.sh
 docker exec dns-manager update-blocklist.sh
 ```
 
-## Updating images
+## Updating
 
 After any change to a Dockerfile or manager scripts:
 
@@ -195,6 +253,12 @@ After any change to a Dockerfile or manager scripts:
 git pull
 docker compose build
 docker compose up -d
+```
+
+Config file changes in `unbound.conf.d/` or `chrony.conf` take effect after:
+
+```bash
+docker compose restart <container>
 ```
 
 To update the Alpine base across all three images, change `ALPINE_TAG` in
@@ -229,14 +293,17 @@ directly from dns-manager without any cross-container networking complexity.
 
 Eliminates the need to share TLS keys between containers. Acceptable on a
 dedicated single-purpose host where the control interface never leaves the
-machine. Fortigate enforces network-layer access control.
+machine. Network-layer access control enforced at the perimeter.
 
-### `unbound.conf.d/` numbered drop-in structure
+### `unbound.conf.d/` numbered drop-in structure with `custom.conf.d/` overrides
 
-`unbound.conf` contains only `include-toplevel` directives. All config
-lives in numbered drop-ins — load order is explicit from the filename,
-new files are picked up automatically without editing `unbound.conf`.
-`20-access-control.conf` is the only file that varies between deployments.
+`unbound.conf` contains only `include-toplevel` directives. Tracked config
+lives in numbered drop-ins under `unbound.conf.d/` — load order is explicit
+from the filename. Host-specific overrides go in gitignored `custom.conf.d/`
+which loads after `unbound.conf.d/`, giving host config precedence without
+touching tracked files. The same pattern applies to `chrony.conf.d/`.
+
+This means `git pull` never conflicts with host-specific configuration.
 
 ### dns-manager as custom Alpine image
 
@@ -269,9 +336,9 @@ Cron job output is redirected to `/proc/1/fd/1` so Docker captures it.
 
 ### firewalld
 
-Cloud-init minimal installs (ns1, ns2) do not include firewalld — no action
-needed. Full OS installs (kd-ns1 from ISO) include firewalld which blocks
-UDP/53 by default. Disable it on dedicated nameserver hosts:
+Cloud-init minimal installs do not include firewalld — no action needed.
+Full OS installs from ISO include firewalld which blocks UDP/53 by default.
+Disable it on dedicated nameserver hosts:
 
 ```bash
 systemctl disable --now firewalld
@@ -281,5 +348,6 @@ systemctl disable --now firewalld
 
 | Date | Change |
 |------|--------|
+| 2026-05-11 | Added per-host config directories — unbound/custom.conf.d/ and chrony/chrony.conf.d/ |
 | 2026-05-11 | Refactored unbound.conf.d — access control split to 20-access-control.conf, zones included via 60-dns-manager-zones.conf |
 | 2026-05-11 | Initial working deployment on Alma 10 |
