@@ -175,7 +175,43 @@ server time.chu.nrc.ca iburst
 allow 192.168.0.0/16
 ```
 
-## Zones repo layout
+## dns-manager
+
+dns-manager handles two jobs on independent cron schedules:
+
+- **Zone deployment** — polls a git repository, deploys changed zone files
+  to the shared zones volume, reloads Unbound
+- **Blocklist update** — fetches a blocklist in native Unbound format,
+  validates it, reloads Unbound
+
+### Environment variables
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `ZONES_REPO` | *(required)* | SSH URL of the zones git repository |
+| `ZONES_BRANCH` | `main` | Branch to track |
+| `ZONES_CRON` | `*/5 * * * *` | Zone poll schedule |
+| `BLOCKLIST_URL` | *(empty — disabled)* | Blocklist URL in native Unbound format. Empty disables blocklisting. |
+| `BLOCKLIST_MIN_LINES` | `10000` | Fetch rejected if file is below this line count |
+| `BLOCKLIST_CRON` | `0 3 * * *` | Blocklist fetch schedule |
+
+### Blocklist
+
+`BLOCKLIST_URL` must point to a blocklist in native Unbound `local-data`
+format. OISD publishes directly in this format:
+
+| Tier | URL | Coverage |
+|------|-----|---------|
+| big | `https://big.oisd.nl/unbound` | Ads, trackers, malware, phishing, adult — most aggressive |
+| small | `https://small.oisd.nl/unbound` | Ads, trackers, malware, phishing — lower false-positive rate |
+| nsfw | `https://nsfw.oisd.nl/unbound` | Adult content only |
+
+Setting `BLOCKLIST_URL=` (empty) disables blocklisting. On the next
+scheduled run any existing `20-blocklist.conf` is removed and Unbound
+is reloaded. This is the explicit disable mechanism — no file is left
+behind.
+
+### Zones repo layout
 
 The zones repo must have a `zones/` subdirectory. Files are in Unbound
 `local-data` format — no SOA, no serial number required.
@@ -338,6 +374,8 @@ systemctl disable --now firewalld
 
 | Date | Change |
 |------|--------|
+| 2026-05-13 | Blocklist URL configurable via BLOCKLIST_URL — empty disables blocklisting |
+| 2026-05-13 | BLOCKLIST_MIN_LINES exposed as env var (default 10000) |
 | 2026-05-11 | Added per-host config directories — unbound/custom.conf.d/ and chrony/chrony.conf.d/ |
 | 2026-05-11 | Refactored unbound.conf.d — access control split to 20-access-control.conf, zones included via 60-dns-manager-zones.conf |
 | 2026-05-11 | Initial working deployment on Alma 10 |

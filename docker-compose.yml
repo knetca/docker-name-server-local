@@ -62,6 +62,8 @@ services:
       ZONES_BRANCH: ${ZONES_BRANCH:-main}
       ZONES_CRON: ${ZONES_CRON:-*/5 * * * *}
       BLOCKLIST_CRON: ${BLOCKLIST_CRON:-0 3 * * *}
+      BLOCKLIST_MIN_LINES: ${BLOCKLIST_MIN_LINES:-10000}
+      BLOCKLIST_URL: ${BLOCKLIST_URL:-}
       TZ: ${TZ:-UTC}
     volumes:
       - ./manager/ssh:/root/.ssh:ro
