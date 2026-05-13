@@ -1,7 +1,7 @@
 #!/bin/sh
 # entrypoint.sh — dns-manager container entrypoint
 #
-# Validates required environment, writes crontab for both jobs, runs 
+# Validates required environment, writes crontab for both jobs, runs
 # initial sync of zones and blocklist, then execs crond in foreground.
 #
 # Logging: all output goes to stdout/stderr, captured by Docker.
@@ -15,12 +15,19 @@ log() { echo "$(date -Iseconds) [dns-manager] $*"; }
 : "${ZONES_BRANCH:=main}"
 : "${ZONES_CRON:=*/5 * * * *}"
 : "${BLOCKLIST_CRON:=0 3 * * *}"
+: "${BLOCKLIST_MIN_LINES:=10000}"
 
 log "Starting dns-manager"
-log "Zones repo:     ${ZONES_REPO}"
-log "Zones branch:   ${ZONES_BRANCH}"
-log "Zones cron:     ${ZONES_CRON}"
-log "Blocklist cron: ${BLOCKLIST_CRON}"
+log "Zones repo:      ${ZONES_REPO}"
+log "Zones branch:    ${ZONES_BRANCH}"
+log "Zones cron:      ${ZONES_CRON}"
+log "Blocklist cron:  ${BLOCKLIST_CRON}"
+log "Blocklist min lines: ${BLOCKLIST_MIN_LINES}"
+if [ -z "${BLOCKLIST_URL:-}" ]; then
+    log "Blocklist URL:   disabled"
+else
+    log "Blocklist URL:   ${BLOCKLIST_URL}"
+fi
 
 # --- SSH key permissions ---
 # git/ssh will refuse keys with permissions wider than 0600
@@ -37,13 +44,13 @@ fi
 
 # --- Write crontab ---
 # Both jobs redirect output to /proc/1/fd/1 so Docker captures them.
-cat > /etc/crontabs/root <<EOF
+cat > /etc/crontabs/root <<CRONTAB
 # dns-manager crontab
 # Zones: poll git repo, deploy on change, reload Unbound
 ${ZONES_CRON} /usr/local/bin/deploy-zones.sh >> /proc/1/fd/1 2>&1
-# Blocklist: fetch OISD, reload Unbound
+# Blocklist: fetch configured list, reload Unbound
 ${BLOCKLIST_CRON} /usr/local/bin/update-blocklist.sh >> /proc/1/fd/1 2>&1
-EOF
+CRONTAB
 
 log "Crontab installed"
 
