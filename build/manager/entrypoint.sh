@@ -31,7 +31,7 @@ fi
 
 # --- SSH key permissions ---
 # git/ssh will refuse keys with permissions wider than 0600
-KEYFILE=/root/.ssh/id_ed25519
+KEYFILE=/root/.ssh/id_rsa
 if [ ! -f "${KEYFILE}" ]; then
     log "ERROR: ${KEYFILE} not found — mount the deploy key"
     exit 1
