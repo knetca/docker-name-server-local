@@ -26,12 +26,12 @@ log() { echo "$(date -Iseconds) [deploy-zones] $*"; }
 
 # --- Clone or update ---
 if [ ! -d "${WORK_DIR}/.git" ]; then
-    rm -rf "${WORK_DIR}"
+    find "${WORK_DIR:?}" -mindepth 1 -delete
     log "Cloning ${ZONES_REPO} branch=${ZONES_BRANCH}"
     if ! timeout "${ZONES_TIMEOUT}" git clone --branch "${ZONES_BRANCH}" --single-branch \
         "${ZONES_REPO}" "${WORK_DIR}"; then
         log "ERROR: git clone failed or timed out after ${ZONES_TIMEOUT} seconds"
-        rm -rf "${WORK_DIR}"
+        find "${WORK_DIR:?}" -mindepth 1 -delete
         exit 1
     fi
     CHANGED=1
