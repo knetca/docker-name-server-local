@@ -17,6 +17,8 @@ services:
     container_name: unbound
     restart: unless-stopped
     network_mode: host
+    environment:
+      TZ: ${TZ:-UTC}
     volumes:
       - ./unbound/unbound.conf:/etc/unbound/unbound.conf:ro
       - ./unbound/unbound.conf.d:/etc/unbound/unbound.conf.d:ro
