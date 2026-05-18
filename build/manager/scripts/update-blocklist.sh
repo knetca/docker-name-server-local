@@ -17,7 +17,9 @@ set -eu
 # Add random jitter to avoid thundering herd if many instances are running
 # with the same schedule.
 JITTER_MAX="${JITTER_MAX:-60}"
-sleep $(( RANDOM % JITTER_MAX ))
+if [ "${JITTER_MAX}" -gt 0 ]; then
+    sleep $(( RANDOM % JITTER_MAX ))
+fi
 
 ZONE_DEST="/etc/unbound/blocklist"
 OUTPUT="${ZONE_DEST}/20-blocklist.conf"

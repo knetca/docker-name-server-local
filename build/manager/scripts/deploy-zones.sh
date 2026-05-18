@@ -14,7 +14,9 @@ set -eu
 # Add random jitter to avoid thundering herd if many instances are running
 # with the same schedule.
 JITTER_MAX="${JITTER_MAX:-60}"
-sleep $(( RANDOM % JITTER_MAX ))
+if [ "${JITTER_MAX}" -gt 0 ]; then
+    sleep $(( RANDOM % JITTER_MAX ))
+fi
 
 ZONES_REPO="${ZONES_REPO:?}"
 ZONES_BRANCH="${ZONES_BRANCH:-main}"
@@ -37,7 +39,7 @@ if [ ! -d "${WORK_DIR}/.git" ]; then
     CHANGED=1
 else
     BEFORE=$(git -C "${WORK_DIR}" rev-parse HEAD)
-    if !timeout "${ZONES_TIMEOUT}" git -C "${WORK_DIR}" fetch --quiet origin "${ZONES_BRANCH}"; then
+    if ! timeout "${ZONES_TIMEOUT}" git -C "${WORK_DIR}" fetch --quiet origin "${ZONES_BRANCH}"; then
         log "ERROR: git fetch failed or timed out after ${ZONES_TIMEOUT} seconds"
         exit 1
     fi
