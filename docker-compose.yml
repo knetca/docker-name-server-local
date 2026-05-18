@@ -12,8 +12,8 @@ services:
     build:
       context: ./build/unbound
       args:
-        ALPINE_TAG: ${ALPINE_TAG}
-    image: dns-unbound:${ALPINE_TAG}
+        ALPINE_TAG: ${ALPINE_TAG:-3.21}
+    image: dns-unbound:${ALPINE_TAG:-3.21}
     container_name: unbound
     restart: unless-stopped
     network_mode: host
@@ -34,8 +34,8 @@ services:
     build:
       context: ./build/chrony
       args:
-        ALPINE_TAG: ${ALPINE_TAG}
-    image: dns-chrony:${ALPINE_TAG}
+        ALPINE_TAG: ${ALPINE_TAG:-3.21}
+    image: dns-chrony:${ALPINE_TAG:-3.21}
     container_name: chrony
     restart: unless-stopped
     network_mode: host
@@ -50,8 +50,8 @@ services:
     build:
       context: ./build/manager
       args:
-        ALPINE_TAG: ${ALPINE_TAG}
-    image: dns-manager:${ALPINE_TAG}
+        ALPINE_TAG: ${ALPINE_TAG:-3.21}
+    image: dns-manager:${ALPINE_TAG:-3.21}
     container_name: dns-manager
     restart: unless-stopped
     depends_on:
