@@ -65,6 +65,7 @@ services:
       BLOCKLIST_CRON: ${BLOCKLIST_CRON:-0 3 * * *}
       BLOCKLIST_MIN_LINES: ${BLOCKLIST_MIN_LINES:-10000}
       BLOCKLIST_URL: ${BLOCKLIST_URL:-}
+      JITTER_MAX: ${JITTER_MAX:-60}
       TZ: ${TZ:-UTC}
     volumes:
       - ./manager/ssh:/root/.ssh:ro

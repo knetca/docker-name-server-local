@@ -11,8 +11,16 @@
 # unbound-control connects to 127.0.0.1:8953 (host networking, no TLS).
 set -eu
 
+# Add random jitter to avoid thundering herd if many instances are running
+# with the same schedule.
+JITTER_MAX="${JITTER_MAX:-60}"
+if [ "${JITTER_MAX}" -gt 0 ]; then
+    sleep $(( RANDOM % JITTER_MAX ))
+fi
+
 ZONES_REPO="${ZONES_REPO:?}"
 ZONES_BRANCH="${ZONES_BRANCH:-main}"
+ZONES_TIMEOUT="${ZONES_TIMEOUT:-60}"
 WORK_DIR="/var/lib/dns-manager/zones"
 ZONE_DEST="/etc/unbound/zones"
 
@@ -20,13 +28,21 @@ log() { echo "$(date -Iseconds) [deploy-zones] $*"; }
 
 # --- Clone or update ---
 if [ ! -d "${WORK_DIR}/.git" ]; then
+    find "${WORK_DIR:?}" -mindepth 1 -delete
     log "Cloning ${ZONES_REPO} branch=${ZONES_BRANCH}"
-    git clone --branch "${ZONES_BRANCH}" --single-branch \
-        "${ZONES_REPO}" "${WORK_DIR}"
+    if ! timeout "${ZONES_TIMEOUT}" git clone --branch "${ZONES_BRANCH}" --single-branch \
+        "${ZONES_REPO}" "${WORK_DIR}"; then
+        log "ERROR: git clone failed or timed out after ${ZONES_TIMEOUT} seconds"
+        find "${WORK_DIR:?}" -mindepth 1 -delete
+        exit 1
+    fi
     CHANGED=1
 else
     BEFORE=$(git -C "${WORK_DIR}" rev-parse HEAD)
-    git -C "${WORK_DIR}" fetch --quiet origin "${ZONES_BRANCH}"
+    if ! timeout "${ZONES_TIMEOUT}" git -C "${WORK_DIR}" fetch --quiet origin "${ZONES_BRANCH}"; then
+        log "ERROR: git fetch failed or timed out after ${ZONES_TIMEOUT} seconds"
+        exit 1
+    fi
     git -C "${WORK_DIR}" reset --hard "origin/${ZONES_BRANCH}" --quiet
     AFTER=$(git -C "${WORK_DIR}" rev-parse HEAD)
 
