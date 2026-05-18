@@ -61,10 +61,10 @@ log "Crontab installed"
 # unbound-control reload will fail softly if Unbound is not yet healthy —
 # the cron jobs succeed on subsequent runs once Unbound is up.
 log "Running initial zone deploy..."
-/usr/local/bin/deploy-zones.sh || log "WARNING: Initial zone deploy failed — will retry on schedule"
+JITTER_MAX=0 /usr/local/bin/deploy-zones.sh || log "WARNING: Initial zone deploy failed — will retry on schedule"
 
 log "Running initial blocklist fetch..."
-/usr/local/bin/update-blocklist.sh || log "WARNING: Initial blocklist fetch failed — will retry on schedule"
+JITTER_MAX=0 /usr/local/bin/update-blocklist.sh || log "WARNING: Initial blocklist fetch failed — will retry on schedule"
 
 # --- Hand off to crond ---
 log "Starting crond"
