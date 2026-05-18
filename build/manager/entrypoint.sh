@@ -16,6 +16,7 @@ log() { echo "$(date -Iseconds) [dns-manager] $*"; }
 : "${ZONES_CRON:=*/5 * * * *}"
 : "${BLOCKLIST_CRON:=0 3 * * *}"
 : "${BLOCKLIST_MIN_LINES:=10000}"
+: "${JITTER_MAX:=60}"
 
 log "Starting dns-manager"
 log "Zones repo:      ${ZONES_REPO}"
@@ -23,6 +24,7 @@ log "Zones branch:    ${ZONES_BRANCH}"
 log "Zones cron:      ${ZONES_CRON}"
 log "Blocklist cron:  ${BLOCKLIST_CRON}"
 log "Blocklist min lines: ${BLOCKLIST_MIN_LINES}"
+log "Jitter max:      ${JITTER_MAX}"
 if [ -z "${BLOCKLIST_URL:-}" ]; then
     log "Blocklist URL:   disabled"
 else
