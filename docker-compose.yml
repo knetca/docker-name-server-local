@@ -21,6 +21,7 @@ services:
       - ./unbound/unbound.conf:/etc/unbound/unbound.conf:ro
       - ./unbound/unbound.conf.d:/etc/unbound/unbound.conf.d:ro
       - ./unbound/custom.conf.d:/etc/unbound/custom.conf.d:ro
+      - blocklist:/etc/unbound/blocklist
       - zones:/etc/unbound/zones
     healthcheck:
       test: ["CMD", "drill", "@127.0.0.1", "health.check.unbound"]
@@ -67,10 +68,12 @@ services:
       TZ: ${TZ:-UTC}
     volumes:
       - ./manager/ssh:/root/.ssh:ro
+      - blocklist:/etc/unbound/blocklist
       - zones:/etc/unbound/zones
       - zones-git:/var/lib/dns-manager/zones
 
 volumes:
+  blocklist:
   zones:
   zones-git:
   chrony-data:
