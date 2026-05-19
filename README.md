@@ -46,8 +46,8 @@ docker-name-server/
 ├── manager
 │   └── ssh
 │       ├── SETUP.md                  # tracked
-│       ├── id_ed25519                # gitignored — generated per host
-│       ├── id_ed25519.pub            # gitignored — generated per host
+│       ├── id_rsa                    # gitignored — generated per host
+│       ├── id_rsa.pub                # gitignored — generated per host
 │       └── known_hosts               # gitignored — generated per host
 ├── README.md
 └── unbound
@@ -96,7 +96,7 @@ $EDITOR .env
 # Follow manager/ssh/SETUP.md
 
 # 4. Set correct permissions on deploy key
-chmod 600 manager/ssh/id_ed25519
+chmod 600 manager/ssh/id_rsa
 
 # 5. Create host-specific config files
 # See unbound/custom.conf.d/README.md and chrony/chrony.conf.d/README.md
