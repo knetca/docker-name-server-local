@@ -13,6 +13,48 @@ git-managed local zones) and Chrony (NTP server) as a Docker Compose stack.
 
 All three images are built locally from the same `ALPINE_TAG` pin.
 
+## K-Net fork
+
+This repository is a K-Net production fork of
+[adilinden-oss/docker-name-server](https://github.com/adilinden-oss/docker-name-server).
+
+| Branch | Purpose |
+|--------|---------|
+| `main` | K-Net production — contains all K-Net-specific changes |
+| `oss-main` | Mirror of upstream `main` — never modified directly |
+
+K-Net-specific changes in `main` include ADO zones repo access (RSA key,
+`ssh.dev.azure.com` host key) in place of the upstream GitHub/ed25519
+defaults.
+
+### Syncing upstream changes into main
+
+```bash
+# 1. Create a fresh clone of this repo
+git clone https://github.com/knetca/docker-name-server-local.git
+cd docker-name-server-local
+
+# 2. Add upstream remote (one-time setup)
+git remote add upstream https://github.com/adilinden-oss/docker-name-server.git
+
+# 3. Update the oss-main branch
+git fetch upstream
+git checkout oss-main
+git reset --hard upstream/main
+git push --force-with-lease origin oss-main
+
+# 4. Merge into main via PR
+git checkout -b merge/upstream-sync
+git merge oss-main
+git push origin merge/upstream-sync
+# Open PR: merge/upstream-sync → main
+```
+
+If the PR introduces conflicts in `build/manager/entrypoint.sh`,
+`manager/ssh/config`, or `manager/ssh/SETUP.md`, resolve them in favour
+of the K-Net ADO changes (id_rsa, ssh.dev.azure.com). These files diverge
+intentionally from upstream.
+
 ## Requirements
 
 - Docker and Docker Compose plugin
