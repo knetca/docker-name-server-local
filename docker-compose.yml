@@ -12,15 +12,18 @@ services:
     build:
       context: ./build/unbound
       args:
-        ALPINE_TAG: ${ALPINE_TAG}
-    image: dns-unbound:${ALPINE_TAG}
+        ALPINE_TAG: ${ALPINE_TAG:-3.21}
+    image: dns-unbound:${ALPINE_TAG:-3.21}
     container_name: unbound
     restart: unless-stopped
     network_mode: host
+    environment:
+      TZ: ${TZ:-UTC}
     volumes:
       - ./unbound/unbound.conf:/etc/unbound/unbound.conf:ro
       - ./unbound/unbound.conf.d:/etc/unbound/unbound.conf.d:ro
       - ./unbound/custom.conf.d:/etc/unbound/custom.conf.d:ro
+      - blocklist:/etc/unbound/blocklist
       - zones:/etc/unbound/zones
     healthcheck:
       test: ["CMD", "drill", "@127.0.0.1", "health.check.unbound"]
@@ -33,8 +36,8 @@ services:
     build:
       context: ./build/chrony
       args:
-        ALPINE_TAG: ${ALPINE_TAG}
-    image: dns-chrony:${ALPINE_TAG}
+        ALPINE_TAG: ${ALPINE_TAG:-3.21}
+    image: dns-chrony:${ALPINE_TAG:-3.21}
     container_name: chrony
     restart: unless-stopped
     network_mode: host
@@ -49,8 +52,8 @@ services:
     build:
       context: ./build/manager
       args:
-        ALPINE_TAG: ${ALPINE_TAG}
-    image: dns-manager:${ALPINE_TAG}
+        ALPINE_TAG: ${ALPINE_TAG:-3.21}
+    image: dns-manager:${ALPINE_TAG:-3.21}
     container_name: dns-manager
     restart: unless-stopped
     depends_on:
@@ -64,13 +67,16 @@ services:
       BLOCKLIST_CRON: ${BLOCKLIST_CRON:-0 3 * * *}
       BLOCKLIST_MIN_LINES: ${BLOCKLIST_MIN_LINES:-10000}
       BLOCKLIST_URL: ${BLOCKLIST_URL:-}
+      JITTER_MAX: ${JITTER_MAX:-60}
       TZ: ${TZ:-UTC}
     volumes:
       - ./manager/ssh:/root/.ssh:ro
+      - blocklist:/etc/unbound/blocklist
       - zones:/etc/unbound/zones
       - zones-git:/var/lib/dns-manager/zones
 
 volumes:
+  blocklist:
   zones:
   zones-git:
   chrony-data:

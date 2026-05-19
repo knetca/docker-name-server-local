@@ -46,8 +46,8 @@ docker-name-server/
 ├── manager
 │   └── ssh
 │       ├── SETUP.md                  # tracked
-│       ├── id_rsa                    # gitignored — generated per host
-│       ├── id_rsa.pub                # gitignored — generated per host
+│       ├── id_ed25519                # gitignored — generated per host
+│       ├── id_ed25519.pub            # gitignored — generated per host
 │       └── known_hosts               # gitignored — generated per host
 ├── README.md
 └── unbound
@@ -58,8 +58,7 @@ docker-name-server/
     └── unbound.conf.d
         ├── 10-server.conf            # interfaces, hardening, performance
         ├── 20-access-control.conf    # RFC1918 defaults — tracked in git
-        ├── 50-forward-zones.conf     # DoT upstream resolvers
-        └── 60-dns-manager-zones.conf # includes zones volume managed by dns-manager
+        └── 50-forward-zones.conf     # DoT upstream resolvers
 ```
 
 ## Per-host configuration
@@ -97,7 +96,7 @@ $EDITOR .env
 # Follow manager/ssh/SETUP.md
 
 # 4. Set correct permissions on deploy key
-chmod 600 manager/ssh/id_rsa
+chmod 600 manager/ssh/id_ed25519
 
 # 5. Create host-specific config files
 # See unbound/custom.conf.d/README.md and chrony/chrony.conf.d/README.md
@@ -116,6 +115,8 @@ docker compose up -d
 ```
 include-toplevel: "/etc/unbound/unbound.conf.d/*.conf"
 include-toplevel: "/etc/unbound/custom.conf.d/*.conf"
+include-toplevel: "/etc/unbound/blocklist/*.conf"
+include-toplevel: "/etc/unbound/zones/*.conf"
 ```
 
 Files are loaded in lexicographic order within each directory. `custom.conf.d`
@@ -128,7 +129,6 @@ loads after `unbound.conf.d` so host-specific directives take precedence.
 | `10-server.conf` | Interfaces, hardening, performance, health check record |
 | `20-access-control.conf` | RFC1918 defaults — loopback + all private address space |
 | `50-forward-zones.conf` | DoT upstream resolvers (CIRA, Quad9, Cloudflare filtered) |
-| `60-dns-manager-zones.conf` | Includes `/etc/unbound/zones/*.conf` from zones volume |
 
 ### Host-specific config (`unbound/custom.conf.d/local.conf`)
 
@@ -219,7 +219,7 @@ The zones repo must have a `zones/` subdirectory. Files are in Unbound
 ```
 dns-zones/
 └── zones/
-    ├── 30-allowed.conf         # blocklist overrides for false positives
+    ├── allowed.conf            # blocklist overrides for false positives
     ├── example.internal.conf   # internal zone — static type
     └── example.com.conf        # split-DNS zone — transparent type
 ```
@@ -235,10 +235,36 @@ dns-manager polls on `ZONES_CRON` (default: every 5 minutes). On a new
 commit, zone files are copied to the shared `zones` volume and
 `unbound-control reload` is issued. No change = no reload.
 
+Example zone file:
+
+```
+server:
+    local-zone: "example.internal." transparent
+
+    # --- Proxmox nodes (VLAN 10 — management) ---
+    local-data: "pve1.example.internal.  IN A 192.168.10.11"
+    local-data: "pve2.example.internal.  IN A 192.168.10.12"
+    local-data: "pve3.example.internal.  IN A 192.168.10.13"
+    local-data: "pbs1.example.internal.  IN A 192.168.10.91"
+```
+
+Example zone file with `view`:
+
+```
+view:
+    name: "tailnet"
+    view-first: yes
+    local-zone: "example.internal." transparent
+    local-data: "pve1.example.internal. IN A 100.64.0.11"
+
+server:
+    access-control-view: 100.64.0.0/10 tailnet
+```
+
 ### Allowlist
 
-`30-allowed.conf` in the zones repo overrides blocklist false positives.
-Loaded after `20-blocklist.conf` (lexicographic order) so entries take
+`zones/allowed.conf` in the zones repo overrides blocklist false positives.
+Loaded after `blocklist/20-blocklist.conf` (lexicographic order) so entries take
 precedence. Format:
 
 ```
@@ -351,7 +377,7 @@ Zones repo is separate from the stack repo. Read-only SSH deploy key
 generated per host — each nameserver has its own key registered on the
 zones repo. Zone files use Unbound `local-data` format: no SOA, no serial
 number, no BIND-style zone management overhead. Allowlist overrides live
-in the zones repo as `30-allowed.conf`.
+in the zones repo as `allowed.conf`.
 
 ### `crond` backgrounded with `tail -f /dev/null`
 
@@ -374,6 +400,7 @@ systemctl disable --now firewalld
 
 | Date | Change |
 |------|--------|
+| 2026-05-18 | Blocklist to its own docker volume, support for unbound views
 | 2026-05-13 | Blocklist URL configurable via BLOCKLIST_URL — empty disables blocklisting |
 | 2026-05-13 | BLOCKLIST_MIN_LINES exposed as env var (default 10000) |
 | 2026-05-11 | Added per-host config directories — unbound/custom.conf.d/ and chrony/chrony.conf.d/ |

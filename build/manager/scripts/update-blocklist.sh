@@ -14,7 +14,14 @@
 # unbound-control connects to 127.0.0.1:8953 (host networking, no TLS).
 set -eu
 
-ZONE_DEST="/etc/unbound/zones"
+# Add random jitter to avoid thundering herd if many instances are running
+# with the same schedule.
+JITTER_MAX="${JITTER_MAX:-60}"
+if [ "${JITTER_MAX}" -gt 0 ]; then
+    sleep $(( RANDOM % JITTER_MAX ))
+fi
+
+ZONE_DEST="/etc/unbound/blocklist"
 OUTPUT="${ZONE_DEST}/20-blocklist.conf"
 TMP="${OUTPUT}.tmp"
 MIN_LINES="${BLOCKLIST_MIN_LINES:-10000}"

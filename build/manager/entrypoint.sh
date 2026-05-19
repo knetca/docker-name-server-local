@@ -16,6 +16,7 @@ log() { echo "$(date -Iseconds) [dns-manager] $*"; }
 : "${ZONES_CRON:=*/5 * * * *}"
 : "${BLOCKLIST_CRON:=0 3 * * *}"
 : "${BLOCKLIST_MIN_LINES:=10000}"
+: "${JITTER_MAX:=60}"
 
 log "Starting dns-manager"
 log "Zones repo:      ${ZONES_REPO}"
@@ -23,6 +24,7 @@ log "Zones branch:    ${ZONES_BRANCH}"
 log "Zones cron:      ${ZONES_CRON}"
 log "Blocklist cron:  ${BLOCKLIST_CRON}"
 log "Blocklist min lines: ${BLOCKLIST_MIN_LINES}"
+log "Jitter max:      ${JITTER_MAX}"
 if [ -z "${BLOCKLIST_URL:-}" ]; then
     log "Blocklist URL:   disabled"
 else
@@ -59,10 +61,10 @@ log "Crontab installed"
 # unbound-control reload will fail softly if Unbound is not yet healthy —
 # the cron jobs succeed on subsequent runs once Unbound is up.
 log "Running initial zone deploy..."
-/usr/local/bin/deploy-zones.sh || log "WARNING: Initial zone deploy failed — will retry on schedule"
+JITTER_MAX=0 /usr/local/bin/deploy-zones.sh || log "WARNING: Initial zone deploy failed — will retry on schedule"
 
 log "Running initial blocklist fetch..."
-/usr/local/bin/update-blocklist.sh || log "WARNING: Initial blocklist fetch failed — will retry on schedule"
+JITTER_MAX=0 /usr/local/bin/update-blocklist.sh || log "WARNING: Initial blocklist fetch failed — will retry on schedule"
 
 # --- Hand off to crond ---
 log "Starting crond"
